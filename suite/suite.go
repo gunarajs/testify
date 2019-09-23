@@ -80,11 +80,21 @@ func (suite *Suite) Run(name string, subtest func()) bool {
 // Run takes a testing suite and runs all of the tests attached
 // to it.
 func Run(t *testing.T, suite TestingSuite) {
+	run(t, suite, false)
+}
+
+// RunParallel takes a testing suite and runs all of the tests attached
+// to it in parallel. The maximum parallel tests is controlled by `-parallel` flag.
+func RunParallel(t *testing.T, suite TestingSuite) {
+	run(t, suite, true)
+}
+
+func run(t *testing.T, suite TestingSuite, parallel bool) {
 	suite.SetT(t)
 	defer failOnPanic(t)
 
 	suiteSetupDone := false
-	
+
 	methodFinder := reflect.TypeOf(suite)
 	tests := []testing.InternalTest{}
 	for index := 0; index < methodFinder.NumMethod(); index++ {
@@ -130,15 +140,15 @@ func Run(t *testing.T, suite TestingSuite) {
 					}
 					suite.SetT(parentT)
 				}()
-				method.Func.Call([]reflect.Value{reflect.ValueOf(suite)})
+				method.Func.Call([]reflect.Value{reflect.ValueOf(suite), reflect.ValueOf(t)})
 			},
 		}
 		tests = append(tests, test)
 	}
-	runTests(t, tests)
+	runTests(t, tests, parallel)
 }
 
-func runTests(t testing.TB, tests []testing.InternalTest) {
+func runTests(t testing.TB, tests []testing.InternalTest, parallel bool) {
 	r, ok := t.(runner)
 	if !ok { // backwards compatibility with Go 1.6 and below
 		if !testing.RunTests(allTestsFilter, tests) {
@@ -148,8 +158,17 @@ func runTests(t testing.TB, tests []testing.InternalTest) {
 	}
 
 	for _, test := range tests {
-		r.Run(test.Name, test.F)
+		trunner(r, test, parallel)
 	}
+}
+
+func trunner(r runner, test testing.InternalTest, parallel bool) {
+	r.Run(test.Name, func(t *testing.T) {
+		if parallel {
+			t.Parallel()
+		}
+		test.F(t)
+	})
 }
 
 // Filtering method according to set regular expression
@@ -162,5 +181,6 @@ func methodFilter(name string) (bool, error) {
 }
 
 type runner interface {
+	Parallel()
 	Run(name string, f func(t *testing.T)) bool
 }
