@@ -157,13 +157,15 @@ func runTests(t testing.TB, tests []testing.InternalTest, parallel bool) {
 		return
 	}
 
-	for _, test := range tests {
-		trunner(r, test, parallel)
-	}
+	r.Run("suite", func(t *testing.T) {
+		for _, test := range tests {
+			trunner(t, test, parallel)
+		}
+	})
 }
 
-func trunner(r runner, test testing.InternalTest, parallel bool) {
-	r.Run(test.Name, func(t *testing.T) {
+func trunner(t *testing.T, test testing.InternalTest, parallel bool) {
+	t.Run(test.Name, func(t *testing.T) {
 		if parallel {
 			t.Parallel()
 		}
